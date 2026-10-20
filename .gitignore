@@ -1,0 +1,21 @@
+# Read-only clone of the sibling product. Never edited, never imported from.
+.reference/
+
+# Local portable Node/pnpm toolchain. Not project source.
+.tools/
+
+# Secrets. .env.example and .env.local.example are the two tracked exceptions.
+.env
+.env.*
+!/.env.example
+!/.env.local.example
+
+# Build output and caches
+node_modules/
+dist/
+*.tsbuildinfo
+coverage/
+
+# Expo-generated
+apps/app/.expo/
+apps/app/expo-env.d.ts

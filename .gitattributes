@@ -1,0 +1,17 @@
+# This machine has core.autocrlf=true. Without this file git would rewrite the
+# working tree to CRLF, which breaks three things in this repo:
+#   - the byte-for-byte comparison between .env.example and
+#     tooling/fixtures/approved-panel.txt that Panel_Check performs,
+#   - the BOM-free single JSON array EMQX requires in tooling/emqx/auth-bootstrap.json,
+#   - anything copied into a Linux container, including the two Dockerfiles.
+# The reference repository has no .gitattributes; this is a deliberate addition.
+* text=auto eol=lf
+
+# Binary: never touched.
+*.png binary
+*.jpg binary
+*.pdf binary
+*.xlsx binary
+*.docx binary
+*.riv binary
+*.bin binary
