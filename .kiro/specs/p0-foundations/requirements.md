@@ -158,7 +158,7 @@ Every spec in this build opens with its choices and its FLAGs.
 
 #### Acceptance Criteria
 
-1. THE first line of every git-tracked `.ts`, `.tsx` and `.mjs` file the Workspace introduces SHALL be a single-line comment whose first token after the comment marker is a Layer_Label followed by a colon, then a space, then a non-empty one-line description.
+1. THE first line of every git-tracked `.ts`, `.tsx` and `.mjs` file the Workspace introduces SHALL be a single-line comment whose first token after the comment marker is a Layer_Label followed by a colon, then a space, then a non-empty one-line description. WHERE line 1 is a tool pragma that the tool requires to be first, THE Layer_Label SHALL occupy line 2 instead; the accepted pragma list SHALL contain exactly one entry, `// @vitest-environment <env>`, and `tooling/test/layer.test.ts` SHALL assert its length.
 2. THE Layer_Check SHALL parse a Layer_Label from a file's first line and SHALL report a finding when that line is absent, is not a single-line comment, or does not begin with exactly one of `contract:`, `platform:` or `product:`.
 3. WHERE a file is a port from the Reference_Repo, THE header comment SHALL additionally name its Port_Origin as a path beginning `.reference/xelulu/`, on the same line.
 4. THE Layer_Check SHALL apply the Import_Rule: a `platform` file importing from a `product` path is a finding, and a `contract` file importing from any in-repository path that is not `contract` is a finding. A `product` file SHALL have no import restriction.

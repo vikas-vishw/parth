@@ -121,6 +121,12 @@ Every file carries a one-line header comment whose **first token is its layer**.
 ```
 A ported file names its origin on the same line. See `reuse.md`.
 
+**One exception, written out so it cannot grow.** Where a tool requires its own pragma on line 1,
+the layer label takes line 2. The only such pragma in this repository is Vitest's environment
+selector, `// @vitest-environment <env>`, which Vitest reads only from the first line. The layer
+check accepts a label on line 2 **only** when line 1 matches that exact pragma form, and
+`tooling/test/layer.test.ts` asserts that the accepted pragma list has exactly one entry.
+
 ### The layer check (A-P section 8)
 `tooling/checks/layer.ts` fails the build when a `platform` file imports from a `product` path, or contains a banned string.
 

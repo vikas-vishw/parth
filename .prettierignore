@@ -1,0 +1,13 @@
+node_modules/
+**/dist/
+apps/app/.expo/
+apps/app/expo-env.d.ts
+pnpm-lock.yaml
+.env.example
+.env.local.example
+tooling/fixtures/
+docs/
+.kiro/
+.tools/
+.reference/
+.tools/

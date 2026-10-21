@@ -176,6 +176,7 @@ Ground rules for every task:
     - Tier A matches case-insensitively over the raw text. Tier B matches whole-word inside identifier and literal spans only, never inside a comment span. Both apply to `platform` files only.
     - An Escape_Hatch on the line above a finding suppresses it and emits a hatch record. An empty reason suppresses nothing.
     - **A module specifier is never scanned by either tier** (design D15). Collect specifiers for the Import_Rule, then exclude their spans from the tier scan.
+    - **Accept the layer label on line 2 when line 1 is a required tool pragma.** The accepted list is one entry, `// @vitest-environment <env>`, written out literally and length-asserted like the infrastructure list. Vitest reads that pragma only from line 1, so the two first-line rules genuinely collide.
     - **Write out the Infrastructure_Exclusion list literally in this file** (design D16): exactly `eslint.config.mjs` and `tooling/eslint/parth-plugin.mjs`. A file on it is excluded from labelling entirely - no label, no tier, no Import_Rule. `tooling/eslint/no-cross-package-import.mjs` is not on it.
     - **This file must contain no banned string**, which is the reason the tiers are a fixture.
     - _Requirements: 4.2, 4.4, 4.5, 4.6, 4.7, 4.8, 4.9, 4.10, 4.12_

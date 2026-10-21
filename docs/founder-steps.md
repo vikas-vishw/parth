@@ -8,6 +8,8 @@ A step belongs here **only** if it needs a credit card, a legal identity, an acc
 
 Seeded from Document A-P section 15 (v1.3), which closed seven of the nine items that used to stand there. The seven below are what remains. Updated at the end of every wave.
 
+**Last updated at the end of P0 wave A.** No row was added and none was closed: wave A needed nothing from you. Node, pnpm and Docker were all handled from the terminal, and the one thing wave A could not verify - that the placeholder app opens in Expo Go on your phone - is not part of P0's gate and is not worth a row until the app has something on it worth looking at.
+
 ---
 
 ## DO NOW
@@ -56,6 +58,8 @@ Recorded here so the list above stays short and so you can see the rule working.
 |---|---|
 | Node 24.21.0 | Copied the sibling product's portable build into `c:\parth\.tools\`, git-ignored, and put it first on PATH for every command. |
 | pnpm 10.34.6 | `corepack enable` and `corepack prepare pnpm@10.34.6 --activate`, with the corepack cache inside `.tools/`. |
-| Docker Compose | Checked the installed version against the 2.24 floor. It passes, and the engine is running, so the Compose wave can run. |
+| Docker Compose | Checked the installed version against the 2.24 floor. It passes (engine 29.9.1 running), so wave C can run. |
+| The Expo SDK | Resolved SDK 58 and its whole peer set from the registry, pinned exactly. No founder step: A-P's method is a command, and commands are mine. |
+| `.gitattributes` | Added, pinning `eol=lf`. This machine has `core.autocrlf=true`, which would have broken the panel byte-comparison and anything copied into a Linux container. |
 | `.gitignore` | Found it was UTF-16 encoded and did not actually ignore `.env`. Rewrote it as UTF-8 with the full set. |
 | The nine HMI pages | Decision D5: the hardware engineer assembles them at P13 from the P9 spec. Not a row for you. |

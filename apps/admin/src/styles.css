@@ -1,0 +1,25 @@
+/* product: the console's P0 styles. Dark-first, and deliberately almost nothing: the design
+   system arrives with the pages at P3. */
+:root {
+  color-scheme: dark;
+  --bg: #0b0e13;
+  --fg: #e7ecf3;
+  --muted: #9aa7b8;
+  font-family: ui-sans-serif, system-ui, sans-serif;
+}
+
+body {
+  margin: 0;
+  padding: 2rem;
+  background: var(--bg);
+  color: var(--fg);
+}
+
+h1 {
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+p {
+  color: var(--muted);
+}

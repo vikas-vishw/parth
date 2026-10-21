@@ -1,0 +1,12 @@
+{
+  "expo": {
+    "name": "Parth",
+    "slug": "parth",
+    "version": "0.0.0",
+    "orientation": "portrait",
+    "scheme": "parth",
+    "userInterfaceStyle": "dark",
+    "newArchEnabled": true,
+    "plugins": ["expo-router"]
+  }
+}
