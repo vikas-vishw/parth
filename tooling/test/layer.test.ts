@@ -1,7 +1,7 @@
 // platform: the three-layer check's properties, its closed lists, and a real run over every
 // tracked source file. The check is pure; this loader is the only part that touches the disk.
 import { execFileSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 
 import fc from "fast-check";
@@ -29,6 +29,10 @@ const ROOT = process.cwd();
 const read = (rel: string): string => readFileSync(path.join(ROOT, rel), "utf8");
 
 const CONFIG = JSON.parse(read("tooling/fixtures/banned-strings.json")) as LayerConfig;
+
+/** Where a Port_Origin must point. The clone itself is git-ignored and often absent. */
+const REFERENCE_ROOT = ".reference/xelulu/";
+const REFERENCE_PRESENT = existsSync(path.join(ROOT, REFERENCE_ROOT));
 
 /** Every tracked or about-to-be-tracked source file, excluding the read-only reference clone. */
 function sourceFiles(): string[] {
@@ -353,21 +357,48 @@ describe("the real repository", () => {
     expect(hatches.length).toBeLessThanOrEqual(HATCH_CAP);
   });
 
-  it("names a port origin that exists in the reference repository", () => {
-    const missing: string[] = [];
-    for (const rel of files) {
-      const text = read(rel);
-      const block = text.split("\n").slice(0, 8).join("\n");
+  /** Every declared Port_Origin, as [file, origin]. */
+  function portOrigins(): [string, string][] {
+    return files.flatMap((rel): [string, string][] => {
+      const block = read(rel).split("\n").slice(0, 8).join("\n");
       const origin = portOrigin(block);
-      if (origin === null) continue;
-      try {
-        readFileSync(path.join(ROOT, origin), "utf8");
-      } catch {
-        missing.push(`${rel} -> ${origin}`);
-      }
-    }
-    expect(missing).toEqual([]);
+      return origin === null ? [] : [[rel, origin]];
+    });
+  }
+
+  it("names a well-formed port origin inside the reference clone (Req 18.1)", () => {
+    // Runs everywhere, including where the reference clone is absent: a malformed origin - a
+    // Windows path separator, a path outside the clone, a bare file name - is a defect whatever
+    // is on disk, and this is the half of Req 18.2 that does not need the clone to check.
+    const origins = portOrigins();
+    expect(origins.length).toBeGreaterThan(30);
+    const malformed = origins
+      .filter(
+        ([, origin]) =>
+          !origin.startsWith(REFERENCE_ROOT) ||
+          origin.includes("\\") ||
+          origin.endsWith("/") ||
+          origin.length <= REFERENCE_ROOT.length,
+      )
+      .map(([rel, origin]) => `${rel} -> ${origin}`);
+    expect(malformed).toEqual([]);
   });
+
+  // Req 18.2 proper, and it needs the clone. `.reference/` is git-ignored, so it exists on the
+  // machine doing the porting and NOWHERE ELSE - not in a fresh clone, not on a CI runner. Making
+  // this unconditional makes every clean clone and every CI run red for a file that is correct.
+  // It is platform-conditional for the same reason the two service stop-line assertions are, and
+  // with the same payer: it runs where a wrong origin can actually be introduced, which is the
+  // only place one ever is.
+  it.runIf(REFERENCE_PRESENT)(
+    "resolves every port origin to a real reference file (Req 18.2)",
+    () => {
+      const missing = portOrigins()
+        .filter(([, origin]) => !existsSync(path.join(ROOT, origin)))
+        .map(([rel, origin]) => `${rel} -> ${origin}`);
+      expect(missing).toEqual([]);
+    },
+  );
 
   it("exempts tooling from the tiers but not from labelling or the import rule", () => {
     const tooling = files.filter((f) => f.startsWith("tooling/"));
