@@ -2,9 +2,9 @@
 
 **Parth — the flagship AI chief-of-staff companion, ages 20–45. Third product in the Companion Intelligence family.**
 
-Version 1.3 · 20 October 2026 · Omar Saud, founder · Claude, CTO / PM / hardware architect
+Version 1.4 · 21 October 2026 · Omar Saud, founder · Claude, CTO / PM / hardware architect
 
-*v1.3 closes the seven open founder decisions and gives Kiro a standing decision mandate. See §19. The amendment log is §18.*
+*v1.4 closes P0 and records the four standing build rules it produced. See §20. The amendment log is §18.*
 
 ---
 
@@ -37,6 +37,7 @@ Every spec in this build opens with its choices and its FLAGs, in the Xelulu for
 | C20 | **The layer check's banned list is two-tiered**, and the ordinary English words come out of it. | Added in v1.2. `focus` is a DOM method, `confirm` is a browser API, `matter` and `brief` occur in normal prose. A check that fires on those burns its escape hatch in a day and then gets deleted. |
 | C21 | **Recording stops on the face, not on the wake word.** The on-screen stop button is the guarantee; "Parth, stop recording" is additive. | Added in v1.2. PA-M05 is a P0 safety promise, and the custom WakeNet model it would depend on is an unconfirmed hardware item. A safety guarantee may not rest on an open question. |
 | C22 | **`tap_zone` freezes as a six-name closed list**, and `touch_pads` declares *which* zones are fitted, not how many. | Added in v1.2. A count tells the cloud nothing about which card to show. The list is the superset; a unit with three pads declares three. |
+| C25 | **An artefact and its test ship in the same wave.** | Added in v1.4. P0's Wave B shipped a `docker-compose.yml` missing its entire `simulator` service, and nothing caught it because the file shipped without its four tests. The gate was green over a file that could not run. |
 | C23 | **The seven open founder decisions are closed**, and written into §19.1. | Added in v1.3. An open question that nobody is actively answering is a stall with a polite name. Each is decided, each has a reason, each is reversible. |
 | C24 | **Kiro has a standing decision mandate** (§19.2): it decides and proceeds by default, and stops only at the contract, the safety model, licences and money, and anything outside the repository. | Added in v1.3. Omar is the founder and does not code; routing implementation choices through him costs a day each and improves nothing. The fences that stay are the ones that cannot be undone by editing a file. |
 | C13 | **Hosting becomes its own phase, P12.5**, between the audit and integration. | Everything before it runs on your own machine. Pilot users are not on your Wi-Fi, and per-device certificates, TLS on every hop and a hosted broker are not a day's work bolted onto integration. |
@@ -163,6 +164,8 @@ git clone https://github.com/vikas-vishw/xelulu.git .reference/xelulu
 echo .reference/ >> .gitignore
 echo .env >> .gitignore
 ```
+
+**Correction (v1.4): those two `echo` lines do not work in Windows PowerShell.** `>>` writes UTF-16LE, git does not read a UTF-16 ignore file usefully, and the result was a `.gitignore` that silently ignored nothing — including `.env`. Kiro found it and rewrote the file as UTF-8 with LF endings. The repository now owns `.gitignore`, `.gitattributes` (pinning `eol=lf`, because `core.autocrlf=true` would break the panel's byte comparison and the BOM-free EMQX bootstrap) and the toolchain under `.tools/`. Nobody needs to run those two lines again; they are left here with their correction because the mistake is worth seeing.
 
 Step 4 is the highest-value line in this document. If the clone asks you to sign in, sign in with the GitHub account that can read the private Xelulu repo. If it refuses, download the repo as a ZIP from GitHub and unzip it into `.reference/xelulu` — Kiro only needs to read the files. Verify it worked: `.reference/xelulu/packages/shared/src/gateway-contract/` should contain about twenty TypeScript files.
 
@@ -328,6 +331,13 @@ One escape hatch exists — `// layer-check-allow: <reason>` on the line above �
 
 **The layer rules govern imports inside this repository only.** An external package is governed by the dependency rules, not the layer table: the `contract` layer imports Zod, and that is not a violation.
 
+**As built at P0** (`tooling/checks/layer.ts`), four further rules, each written out literally and each with its list length asserted so it cannot grow quietly:
+
+1. **A module specifier is never scanned** by either tier. What a file *says* and what it *depends on* are different questions, and the import rule answers the second. This replaces the substring exemption for `@parth/` that the first draft of this section used, and it is cleaner: a substring exemption would also have excused a comment that happened to contain the scope.
+2. **Infrastructure is excluded from layer labelling entirely**: exactly `eslint.config.mjs` and `tooling/eslint/parth-plugin.mjs`, whose literal content *is* the plugin namespace. They are excluded rather than labelled `product`, because the `product` label would grant them an import right they must never have.
+3. **One accepted first-line pragma.** Vitest reads `// @vitest-environment jsdom` only from line 1, which genuinely collides with the label's line-1 rule. After that one pragma the label takes line 2.
+4. **Both tiers are exempt under the single prefix `tooling/`.** A detector has to contain the string it detects and a test has to name the value it asserts about. The tiers exist to keep the code that gets extracted at P5 free of product identity, and `tooling/` is never extracted. The import rule still applies there in full, every file still carries its label, the prefix list is asserted at length one, and nothing under `apps/`, `services/` or `packages/` may import from `tooling/`.
+
 After P5, when the shared shape has been seen twice rather than guessed once, the extraction is a mechanical move of the `contract` and `platform` files into a `companion-platform` package that both products depend on.
 
 ---
@@ -343,7 +353,7 @@ This is the table Kiro works from. `.reference/xelulu` is read-only; nothing is 
 | Root toolchain | `package.json` (scripts and pins), `pnpm-workspace.yaml`, `tsconfig.base.json`, `tsconfig.test.json`, `vitest.config.ts`, `eslint.config.mjs`, `.prettierrc.json`, `.prettierignore`, `.npmrc`, `.nvmrc`, `docker-compose.yml` |
 | Repo checks | all of `tooling/checks/` (`contract-use`, `env-reads`, `exact-version`, `kebab-case`, `secret-scan`, `service-sources`, `url-scan`, `panel`, `contrast`, `audio-retention`), `tooling/compose/compose-acceptance.ts`, `tooling/eslint/no-cross-package-import.mjs`, `tooling/eslint/xelulu-plugin.mjs`, all of `tooling/test/` and `tooling/fixtures/` |
 | Contract machinery | `packages/shared/src/gateway-contract/` — `primitives.ts`, `envelope.ts`, `errors.ts`, `codec.ts`, `topics.ts`, `constants.ts` and the `index.ts` export discipline. **The machinery ports; every value comes from B-P.** |
-| Gateway log | all of `packages/shared/src/gateway-log/` |
+| Gateway log | ~~all of `packages/shared/src/gateway-log/`~~ — **corrected in v1.4: it does not port.** Four of its six files import the contract, so the whole directory arrives at P1. Found by Kiro at P0 against this document's own claim |
 | Gateway plumbing | `services/gateway/src/` — `backoff`, `clock`, `config`, `config-error-writer`, `crash`, `deadlines`, `env`, `ids`, `listen-host`, `log/`, `mqtt/` (`ack-tracker`, `broker-session`, `command-sender`, `inbound-pipeline`, `mqtt-transport`, `transport/mqtt-js-connector`), `audio/` (`audio-server`, `audio-transport`, `audio-turn`, `synthetic-frame`, `transport/ws-audio-listener`), `devices/` (`dedupe-store`, `device-session`, `pairing-code`, `presence`, `registry`, `event-log-data`), `operator/` (all seven files) |
 | Brain skeleton | `services/gateway/src/brain/` — `turn-pipeline`, `turn-responder`, `turn-latency`, `voice-brain`, `filler`, and all of `providers/` including the mocks and `provider-gate` |
 | Simulator | effectively all of `services/simulator/`, including `panel/` and the whole of `test/support/` (the fake gateway, the in-memory broker, the test clock, the arbitraries) |
@@ -810,6 +820,21 @@ Omar is the founder and does not write code. Routing an implementation choice th
 
 The contract and the safety model are the two places where a mistake cannot be undone by editing a file. A contract error ships into firmware built in another city by someone who reads the document and not this chat. A safety error reaches a person who trusted the product with their mail. Everything else in this build is recoverable, which is exactly why everything else is delegated.
 
+## 20. P0, closed (added in v1.4)
+
+**Closed 21 October 2026.** Four commits, all pushed. On a clean clone of `cd8492f`: install, lockfile check, build, lint, format check, test and Compose acceptance all exit 0 — 26 test files, 359 passed, 3 skipped, **none skipped for a missing contract.** Zero escape hatches used of five. Both contract directories verifiably do not exist, and `packages/shared/src` holds exactly `index.ts`.
+
+The gate that mattered most was row 4, and it was proved rather than asserted: Compose brought the stack up, both services logged one start line and then stayed silent, and a real `SIGTERM` reached PID 1 in each container and produced one stop line and exit 0. The two Windows-signal tests are `it.runIf(POSIX)`, so CI runs them.
+
+### The four standing rules P0 produced
+
+Each came from something that went wrong, and each applies to every phase from here.
+
+1. **An artefact and its test ship in the same wave** (C25). Wave B shipped a `docker-compose.yml` with no `simulator` service and a `gateway` block that ended mid-definition. The wave went green because the file shipped without its four tests. A file with no test is not delivered, it is merely present.
+2. **The rename rule needs an assertion, not discipline.** Two files carried `xlu_ci_sim`, the sibling product's device prefix, one of them seeded as a broker credential — a defect that would have surfaced at P2 as an authentication mystery. `layout.test.ts` now fails if any shipped file carries `xlu_`.
+3. **A check that depends on `.reference/` cannot run in CI.** The reference clone is git-ignored, so it exists only on the build machine. Port-origin *shape* is asserted everywhere; port-origin *resolution* only where the clone exists — which means resolution must actually be run locally at every phase close, or header provenance quietly rots.
+4. **A deferral register is a claim, and claims are checked.** Four register rows promised a "fixture half at P0" for files that had been deleted whole. The register is reconciled against the tree at every phase close, not written once.
+
 ## 18. Amendment log
 
 **v1.1 — 20 October 2026, after reviewing Kiro's P-0.1 reply.**
@@ -847,5 +872,14 @@ The contract and the safety model are the two places where a mistake cannot be u
 | §15 cut from nine items to seven, all of them accounts, money or people | §15 | What remains is what genuinely cannot be delegated |
 | The pilot answers desirability; P8 moves ahead of P10; the pilot cut table updated | §12, D2 | Reliability is demonstrable in any build order; desirability is not |
 | A working cost target recorded: ₹12,000 BOM at pilot scale against ₹29,000 retail | D6 | The plan needs a number to decide what stays P0. Overrule it whenever |
+
+**v1.4 — 21 October 2026, at the close of P0.**
+
+| Change | Where | Why |
+|---|---|---|
+| P0 recorded as closed, with its gate evidence and the four standing rules it produced | §20, C25 | A phase that closes without recording what it taught repeats itself |
+| §4.1's two `echo >> .gitignore` lines corrected | §4.1 | PowerShell writes UTF-16LE; git read none of it, so `.env` was never ignored |
+| The layer check's four as-built rules written out: specifiers unscanned, infrastructure excluded, one pragma exception, `tooling/` exempt from both tiers | §8 | All four were discovered by building the check rather than specifying it |
+| §9.1's claim that `gateway-log` ports as-is is struck | §9.1 | Four of its six files import the contract. Kiro found it against this document |
 
 **Next: chat 2 — Document B-P, the frozen Parth gateway and hardware seam.** Open it after you have pasted Kiro's P-0.1 reply here and I have reviewed it.

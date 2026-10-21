@@ -34,6 +34,21 @@ const CONFIG = JSON.parse(read("tooling/fixtures/banned-strings.json")) as Layer
 const REFERENCE_ROOT = ".reference/xelulu/";
 const REFERENCE_PRESENT = existsSync(path.join(ROOT, REFERENCE_ROOT));
 
+/** Tracked files under any of `prefixes` whose base name matches `pattern`. */
+function trackedUnder(prefixes: readonly string[], pattern: RegExp): string[] {
+  const out = execFileSync("git", ["ls-files", "--cached", "--others", "--exclude-standard"], {
+    cwd: ROOT,
+    encoding: "utf8",
+  });
+  return out
+    .split("\n")
+    .map((l) => l.trim())
+    .filter(
+      (l) =>
+        l !== "" && prefixes.some((p) => l.startsWith(p)) && pattern.test(l.split("/").pop() ?? ""),
+    );
+}
+
 /** Every tracked or about-to-be-tracked source file, excluding the read-only reference clone. */
 function sourceFiles(): string[] {
   const out = execFileSync("git", ["ls-files", "--cached", "--others", "--exclude-standard"], {
@@ -399,6 +414,58 @@ describe("the real repository", () => {
       expect(missing).toEqual([]);
     },
   );
+
+  // A-P section 8, as-built rule 4, final clause. The tier exemption is only contained while
+  // this holds. `tooling/` may say `parth` and name a vendor, because a detector has to contain
+  // the string it detects; the moment an extractable file imports from there, every one of those
+  // strings is reachable from the code the tiers exist to keep clean, and the exemption has
+  // quietly become a hole. The tiers would not catch it - a specifier is never scanned - and the
+  // import rule would not either, because `tooling/` is labelled `platform` and a platform file
+  // may import from a platform file. So it is asserted here, separately, as its own rule.
+  it("lets nothing extractable import from tooling/", () => {
+    const EXTRACTABLE = ["apps/", "services/", "packages/"];
+    const offenders: string[] = [];
+    for (const rel of files.filter((f) => EXTRACTABLE.some((p) => f.startsWith(p)))) {
+      const fromDir = path.posix.dirname(rel);
+      for (const spec of specifiers(read(rel))) {
+        // Resolved, not matched: `../../tooling/x.js` names tooling without saying so. A
+        // non-relative specifier is checked as written, which is the only thing it can be.
+        const target = spec.value.startsWith(".")
+          ? path.posix.normalize(path.posix.join(fromDir, spec.value))
+          : spec.value;
+        if (target.startsWith("tooling/") || target.includes("/tooling/")) {
+          offenders.push(`${rel}:${spec.lineNo} -> ${spec.value}`);
+        }
+      }
+    }
+    expect(offenders, `extractable code importing tooling/:\n${offenders.join("\n")}`).toEqual([]);
+  });
+
+  it("scans every extractable package for that rule, so the assertion is not vacuous", () => {
+    // Without this, deleting the three prefixes above would make the assertion pass trivially.
+    // `packages/` holds exactly two source files at P0 - the shared package's `index.ts` and its
+    // export test - so each prefix is asserted present rather than populous, and the total
+    // carries the weight. It grows at P1 when the contract lands.
+    const counted = ["apps/", "services/", "packages/"].map(
+      (prefix) => [prefix, files.filter((f) => f.startsWith(prefix)).length] as const,
+    );
+    for (const [prefix, n] of counted) expect(n, prefix).toBeGreaterThan(0);
+    expect(counted.reduce((sum, [, n]) => sum + n, 0)).toBeGreaterThan(20);
+  });
+
+  it("reaches tooling/ from nothing extractable at compile time either", () => {
+    // The import rule above governs module specifiers. A tsconfig `include`, `files` or
+    // `references` entry, or a manifest dependency, would pull the same files in without one.
+    const manifests = trackedUnder(
+      ["apps/", "services/", "packages/"],
+      /(tsconfig.*\.json|package\.json)$/,
+    );
+    expect(manifests.length).toBeGreaterThan(8);
+    const offenders = manifests
+      .filter((rel) => /(^|[^\w-])tooling\//.test(read(rel)))
+      .map((rel) => rel);
+    expect(offenders, `manifests naming tooling/: ${offenders.join(", ")}`).toEqual([]);
+  });
 
   it("exempts tooling from the tiers but not from labelling or the import rule", () => {
     const tooling = files.filter((f) => f.startsWith("tooling/"));

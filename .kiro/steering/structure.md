@@ -144,6 +144,15 @@ check accepts a label on line 2 **only** when line 1 matches that exact pragma f
 
 Both tiers apply to `platform` files only. A `contract` file and a `product` file are not checked against either.
 
+**Both tiers are also exempt under the single prefix `tooling/`** (A-P section 8, as built at P0). A detector has to contain the string it detects - the ported checks look for the topic root, the package scope and vendor SDK names - and a test has to name the value it asserts about. The tiers exist to keep the code that gets **extracted at P5** free of product identity, and `tooling/` is never extracted. Four things keep the exemption contained, and all four are asserted in `tooling/test/layer.test.ts`:
+
+- the **import rule still applies there in full**;
+- every file there still carries its **layer label**;
+- the prefix list is **asserted at length one**, and no prefix reaches `services/`, `apps/` or `packages/`;
+- **nothing under `apps/`, `services/` or `packages/` may import from `tooling/`** - resolved, not matched, so `../../tooling/x.js` is caught, and extended to a `tsconfig` or manifest reference so the compile-time path is closed too.
+
+That last one is the one that matters. Without it, product identity re-enters the extractable code through a tooling import: the tiers would not catch it, because a module specifier is never scanned, and neither would the import rule, because `tooling/` is `platform` and a platform file may import a platform file.
+
 The membership lives in `tooling/fixtures/banned-strings.json`, read by `layer.ts` the way `approved-panel.txt` is read by `panel.ts`, so an amendment to A-P section 8 is a one-file edit and no code change.
 
 **The specifier rule.** A **module specifier is never scanned by either tier.** The quoted string in an `import`, `export … from`, `import()` or `require()` is governed by the import rule and nothing else. This is a reading of A-P section 8 rather than an exemption from it: section 8 already separates specifiers from content when it says the layer rules govern imports inside this repository only, and that the contract layer importing Zod is not a violation. Without it, `@parth/shared` - the workspace's own scope, which appears in every cross-package import - would trip Tier A in every platform file that uses the contract from P2 onward.
