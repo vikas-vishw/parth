@@ -397,23 +397,34 @@ This is the complete list of everything in `reuse.md`'s port manifest that P0 do
 
 ### tooling
 
+Corrected at the end of wave D against what the waves actually delivered. Four rows below were
+wrong when first written: they described a fixture half shipping at P0 for a test file that was
+deleted whole, and they understated the acceptance runner's narrowing.
+
 | Path | Reason | Deferred to |
 |---|---|---|
-| `checks/contract-use.ts` | **PRESENT-UNEXERCISED** | **P1**. Ported and committed at P0, called with an empty contract surface, so it reports nothing. P1 gives it the real surface. |
-| `checks/contrast.ts` | **PRESENT-UNEXERCISED** | **P9**. Its real target is the HMI token set; secondarily the app theme at P11. At P0 it runs against its own fixtures only. |
-| `checks/audio-retention.ts` | **PRESENT-UNEXERCISED** | **P7**. Fixture-only at P0; its real target is the meeting session. |
-| `fixtures/contract-use-banned.txt`, `contract-use-clean.txt` | **PRESENT-UNEXERCISED** | **P1**. Committed at P0; their test does not exist until P1. |
+| `checks/contract-use.ts` | **PRESENT-UNEXERCISED** | **P1**. Ported and committed at P0; no test calls it, because its test needs the contract surface. |
+| `checks/contrast.ts` | **PRESENT-UNEXERCISED** | **P9**. Ported and committed; nothing calls it at P0. Its real target is the HMI token set, secondarily the app theme at P11. |
+| `checks/audio-retention.ts` | **PRESENT-UNEXERCISED** | **P7**. Ported and committed; nothing calls it at P0. Its real target is the meeting session. |
+| `fixtures/contract-use-banned.txt`, `contract-use-clean.txt` | **PRESENT-UNEXERCISED** | **P1**. Committed at P0; their test needs the contract surface. |
+| `fixtures/gateway-boundaries-banned.txt`, `gateway-boundaries-clean.txt` | **PRESENT-UNEXERCISED** | **P2**. Committed at P0; no boundary detector is ported yet, so nothing reads them. |
+| `fixtures/service-sources-banned.txt`, `service-sources-clean.txt` | delivered and **exercised** | - | 
 | `test/contract-use.test.ts` | CONTRACT | **P1**. Reads `packages/shared/src/gateway-contract/index.ts` and imports value lists from the built shared package. |
 | `test/matrix-derivation.test.ts` | CONTRACT + SERVICE | **P3**. Needs both the contract lists and the console's matrix. |
 | `test/intern-guide.test.ts` | SERVICE | **P13**. Needs `docs/intern-integration-guide.md` and the console's matrix. |
 | `test/no-direct-send.test.ts` | CONTRACT | **P2**. Asserts every send goes through `command-sender`. |
-| `test/gateway-boundaries.test.ts` real-repository half | CONTRACT, **NARROWED** | **P2**. The fixture-driven half ships at P0 against the two `gateway-boundaries-*.txt` fixtures; the half that asserts boundaries between gateway modules waits for those modules. |
-| `test/layout.test.ts` contract-directory assertions | CONTRACT, **NARROWED** | **P1**. At P0 the assertions are inverted: the directory must **not** exist. P1 restores the positive form. |
-| `test/readme.test.ts` contract-directory assertions | CONTRACT, **NARROWED** | **P1**. Same inversion. |
-| `test/contrast.test.ts` real-repository half | HMI, **NARROWED** | **P9**. Fixture half at P0; the token-set half at P9. |
+| `test/gateway-boundaries.test.ts` | CONTRACT | **P2**, whole file. **Corrected:** the first draft of this row promised a fixture half at P0. There is none - the file is not ported at all, because no boundary detector is ported for its fixtures to drive. |
+| `test/contrast.test.ts` | HMI | **P9**, whole file. **Corrected:** the first draft promised a fixture half at P0. There is none; the file is not ported. |
+| `test/audio-retention.test.ts` | SERVICE | **P7**, whole file. Its target is the meeting session. |
+| `test/placeholder.test.ts` | DESIGN | **P11**. 31 KB asserting the sibling product's screens. Parth's six pilot areas arrive at P11. |
 | `test/style-props.test.ts` | DESIGN | **P11**. Asserts style-prop conventions across app components that do not exist at P0. |
-| `compose-acceptance.ts` service-port and healthcheck expectations | **NARROWED** | **P2**. Narrowed to EMQX's ports plus "both services reach `running`" (P0-F3). P2 restores the published-port and healthcheck assertions when the Operator_Surface and the Control_Surface exist. |
-| `eval/` — the promptfoo golden set | SERVICE | **P5**. New. |
+| `test/layout.test.ts` contract-directory assertions | CONTRACT, **NARROWED** | **P1**. At P0 the assertions are inverted: the directory must **not** exist. P1 restores the positive form. |
+| `test/readme.test.ts` Expected_Results table rows | DESIGN, **NARROWED** | **P11**. The ported file pins a row per command - Expo Go showing a screen, the console showing live data, a deep-link prefix. At P0 none of those is a fact. The nine Req 17 statements are asserted in full. |
+| `test/compose-static.test.ts` port, healthcheck and depends_on expectations | **NARROWED** | **P2**. At P0 neither Node service publishes a port or declares a healthcheck, so the simulator waits on EMQX alone and the key set is six rather than eight. The absences are asserted, not skipped. |
+| `test/lan-bind.test.ts` audio-port and human-surface rows | **NARROWED** | **P2**. Only the two EMQX device-facing ports follow `DEVICE_BIND_HOST` at P0; the gateway's audio port and the two published surfaces arrive with their listeners. |
+| `test/compose-acceptance.test.ts` 23.x predicate suites | CONTRACT, **NARROWED** | **P2**. The ported file is 43 KB, most of it driving the 23.x predicates with fixture log entries built from WIRE VALUES. Those are B-P's to define, so porting them would bake the sibling product's vocabulary into this repository through a test file. The pure machinery that names no wire value is ported in full, and the three P0 criteria are tested. |
+| `compose/compose-acceptance.ts` step list | CONTRACT, **NARROWED** | **P2**. Every pure helper is ported whole and exported. `acceptanceSteps` - 23.1, stream, conversation, content, 23.2-23.8 - is ported whole, exported and **not run**: every step needs the contract, a service CLI or a published surface. The CLI entry runs three criteria instead - `up`, `quiet`, `stop` - and writes no `.env`, because the P0 claim is that the stack comes up on the Compose defaults alone. `CRITERIA` keeps the ported entries, so P2 restores the call rather than the code. |
+| `eval/` - the promptfoo golden set | SERVICE | **P5**. New. |
 
 ### docs
 
@@ -421,9 +432,25 @@ This is the complete list of everything in `reuse.md`'s port manifest that P0 do
 |---|---|---|
 | `docs/intern-integration-guide.md` | SERVICE | **P13**. The template is read from the Reference_Repo; Parth's version is written when the matrix and the contract exist to describe. |
 
-### Nothing is deferred from
+### Delivered in full
 
-The root toolchain, the ten ported check modules, `parth-plugin`, the EMQX bootstrap, the six ported fixtures, the Supabase scaffold, CI, the two Dockerfiles, `docker-compose.yml`, `.env.example`, `.env.local.example` and `README.md` are all delivered in full at P0.
+The root toolchain, the ten ported check modules, the new layer check, `parth-plugin`, the EMQX
+bootstrap, the six ported fixtures as files, the Supabase scaffold, `docker-compose.yml`,
+`.env.example`, `.env.local.example` and `README.md` are all delivered in full at P0.
+
+### Narrowed outside the port manifest
+
+Four narrowings are not port-manifest entries, so they belong here rather than in a table above.
+
+| What | Reason | Restored at |
+|---|---|---|
+| Both Dockerfiles: `COPY packages/shared/node_modules` | the shared package has no dependency of its own yet, so pnpm creates no such directory and the COPY cannot resolve. Found by the first real `docker compose up --build`. | **P1**, with zod |
+| `services/simulator/Dockerfile`: `COPY panel/` | the Control_Surface and its control panel do not exist. Same discovery. | **P2** |
+| `.github/workflows/ci.yml`: the Panel_Key-reaches-both-services step | the panel declares 85 keys; each service carries the eight it reads at P0, so the step would fail on 77 keys nothing reads yet. | as the services grow into the panel |
+| `services/*/test/start.test.ts`: the two stop-line assertions | Windows has no signals - `child.kill()` calls TerminateProcess, so no handler runs and no stop line can be observed. They are `it.runIf(POSIX)`, so they RUN on Linux and macOS in CI, and the Compose acceptance check observes a real SIGTERM on every platform. | never: platform-conditional by design, with a named payer |
+| `apps/app`: NativeWind, Tailwind, `tailwind.config.js`, `nativewind-env.d.ts`, `global.css` | task 6.1 asked for them. A CSS-first styling pipeline with one placeholder screen and no design tokens styles nothing, and P11 replaces every file it would have produced. | **P11**, with the design system |
+| `apps/app`: the jest-expo render harness and `jest.config.js` | task 6.1 asked for a test asserting the placeholder renders its title. The app's `test` script is `tsc --noEmit` instead: a render harness exists to protect a component tree, and there is one screen of two elements. | **P11**, with the first real screen |
+| The layer check's two tiers under `tooling/` | a detector must contain the string it detects and a test must name the value it asserts about. The import rule still applies in full, and the exemption is one prefix, length-asserted, proven not to reach `services/`, `apps/` or `packages/`. | never: deliberate, and the extraction at P5 does not move `tooling/` |
 
 ## Waves
 

@@ -1,0 +1,141 @@
+# Repo verification: the checks on three OSes, then the Compose_Acceptance_Check.
+# No job uses a secret, and none is read: at P0 there is nothing to authenticate to.
+#
+# NARROWED AT P0 from .reference/xelulu/.github/workflows/ci.yml in one place. The ported file has
+# a step asserting that every Panel_Key reaches the gateway and the simulator through Compose.
+# Parth's panel declares 85 keys and each service carries the eight it reads at P0, so that step
+# would fail on 77 keys that nothing reads yet. It returns as the services grow into the panel.
+name: ci
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  COREPACK_ENABLE_DOWNLOAD_PROMPT: "0"
+
+jobs:
+  checks:
+    name: checks (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          package-manager-cache: false
+
+      - run: corepack enable
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: git diff --exit-code pnpm-lock.yaml
+
+      - run: pnpm lint
+
+      - run: pnpm format:check
+
+      - run: pnpm build
+
+      # On Linux and macOS this is where the two service stop-line assertions actually run: they
+      # are skipped on win32 only, because Windows has no signals to deliver.
+      - run: pnpm test
+
+  compose:
+    name: compose acceptance
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          package-manager-cache: false
+
+      - name: Config resolves with no .env
+        shell: bash
+        run: |
+          set -euo pipefail
+          test ! -e .env
+          docker compose config --quiet
+
+      - name: Build gateway and simulator images
+        run: docker compose build gateway simulator
+
+      - name: Start EMQX with no .env
+        shell: bash
+        run: |
+          set -euo pipefail
+          test ! -e .env
+          docker compose up -d emqx
+
+      - name: EMQX dashboard answers within 120 s
+        shell: bash
+        run: |
+          set -euo pipefail
+          deadline=$((SECONDS + 120))
+          until curl -fsS -o /dev/null http://127.0.0.1:18083; do
+            if [ "$SECONDS" -ge "$deadline" ]; then
+              echo "EMQX dashboard did not answer within 120 s" >&2
+              exit 1
+            fi
+            sleep 2
+          done
+
+      - name: EMQX ports listen on 127.0.0.1 only
+        shell: bash
+        run: |
+          set -euo pipefail
+          for port in 1883 8883 8083 8084 18083; do
+            addrs=$(ss -ltnH "sport = :$port" | awk '{print $4}')
+            if [ -z "$addrs" ]; then
+              echo "nothing listens on port $port" >&2
+              exit 1
+            fi
+            if printf '%s\n' "$addrs" | grep -vxF "127.0.0.1:$port"; then
+              echo "port $port listens beyond 127.0.0.1" >&2
+              exit 1
+            fi
+          done
+
+      - name: Stop EMQX before the acceptance check brings the stack up itself
+        run: docker compose down -v
+
+      # Brings the whole stack up with NO root .env, asserts up + quiet + stop against the real
+      # containers, and brings it down itself. The `stop` criterion is the only place in this
+      # repository where a real SIGTERM reaches a real process.
+      - name: Compose_Acceptance_Check (Done-when 4)
+        timeout-minutes: 20
+        run: node tooling/compose/compose-acceptance.ts
+
+      - name: Compose logs on failure
+        if: failure()
+        run: docker compose logs --no-color
+
+      - name: Compose down
+        if: always()
+        run: docker compose down -v
+
+      - name: Remove any temporary .env
+        if: always()
+        run: rm -f .env

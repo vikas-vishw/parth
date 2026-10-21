@@ -6,7 +6,13 @@ import path from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { findModuleSpecifiers } from "../checks/service-sources.js";
+import {
+  findFileWrites,
+  findModuleSpecifiers,
+  findStdioUse,
+  formatSourceFindings,
+  type SourceFinding,
+} from "../checks/service-sources.js";
 
 const ROOT = process.cwd();
 const read = (rel: string): string => readFileSync(path.join(ROOT, rel), "utf8");
@@ -36,6 +42,10 @@ const SCOPE = `${(JSON.parse(read("packages/shared/package.json")) as { name: st
 
 /** The only two modules in a service that may write to stdout or stderr. */
 const STDIO_WRITERS = ["log/logger.ts", "config-error-writer.ts"];
+
+function expectNone(findings: readonly SourceFinding[], what: string): void {
+  expect(findings, `${what}:\n${formatSourceFindings(findings)}`).toEqual([]);
+}
 
 describe("service sources", () => {
   it("finds a module specifier in every import form", () => {
@@ -85,27 +95,55 @@ describe("service sources", () => {
   });
 
   it("writes to a file from nowhere", () => {
-    for (const svc of SERVICES) {
-      for (const rel of sourcesOf(svc)) {
-        const text = read(rel);
-        for (const api of ["node:fs", "writeFileSync", "createWriteStream", "appendFile"]) {
-          expect(text.includes(api), `${rel} uses ${api}`).toBe(false);
-        }
-      }
-    }
+    // The ported detector rather than a substring scan: it finds an aliased fs import too.
+    const findings = SERVICES.flatMap((svc) =>
+      sourcesOf(svc).flatMap((rel) => findFileWrites(rel, read(rel))),
+    );
+    expectNone(findings, "File-writing calls in service sources");
   });
 
   it("writes to stdout or stderr only from the logger and the config error writer", () => {
+    const findings = SERVICES.flatMap((svc) =>
+      sourcesOf(svc)
+        .filter((rel) => !STDIO_WRITERS.some((w) => rel.endsWith(w)))
+        .flatMap((rel) => findStdioUse(rel, read(rel))),
+    );
+    expectNone(findings, "Stdio use outside the allowed files");
+
+    // The allowance is used: every logger writes to stdout and every config error writer to
+    // stderr. Without this half, deleting both files would make the assertion above pass.
     for (const svc of SERVICES) {
-      for (const rel of sourcesOf(svc)) {
-        const text = read(rel);
-        const writes =
-          text.includes("process.stdout") ||
-          text.includes("process.stderr") ||
-          /\bconsole\./.test(text);
-        const allowed = STDIO_WRITERS.some((w) => rel.endsWith(w));
-        expect(writes && !allowed, `${rel} writes to stdio`).toBe(false);
-      }
+      const rules = (rel: string): string[] => findStdioUse(rel, read(rel)).map((f) => f.rule);
+      expect(rules(`services/${svc}/src/log/logger.ts`)).toContain("stdout_write");
+      expect(rules(`services/${svc}/src/config-error-writer.ts`)).toContain("stderr_write");
     }
+  });
+
+  // The two ported fixtures, which nothing else exercises at P0. They name no wire value and no
+  // product string, so they run now rather than waiting for the services to grow.
+  describe("fixture self-tests", () => {
+    const fixturePath = "services/gateway/src/fixture.ts";
+    const banned = read("tooling/fixtures/service-sources-banned.txt");
+    const clean = read("tooling/fixtures/service-sources-clean.txt");
+    const lineRules = (findings: readonly SourceFinding[]): [number, string][] =>
+      findings.map((f) => [f.lineNo, f.rule]);
+
+    it("reports every banned pattern", () => {
+      expect(lineRules(findFileWrites(fixturePath, banned))).toEqual([
+        [3, "file_write"],
+        [4, "file_write"],
+        [5, "file_write"],
+      ]);
+      expect(lineRules(findStdioUse(fixturePath, banned))).toEqual([
+        [6, "console"],
+        [7, "stdout_write"],
+        [8, "stderr_write"],
+      ]);
+    });
+
+    it("reports nothing for the clean fixture", () => {
+      expectNone(findFileWrites(fixturePath, clean), "file writes");
+      expectNone(findStdioUse(fixturePath, clean), "stdio");
+    });
   });
 });

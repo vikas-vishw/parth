@@ -8,11 +8,20 @@ A step belongs here **only** if it needs a credit card, a legal identity, an acc
 
 Seeded from Document A-P section 15 (v1.3), which closed seven of the nine items that used to stand there. The seven below are what remains. Updated at the end of every wave.
 
-**Last updated at the end of P0 wave A.** No row was added and none was closed: wave A needed nothing from you. Node, pnpm and Docker were all handled from the terminal, and the one thing wave A could not verify - that the placeholder app opens in Expo Go on your phone - is not part of P0's gate and is not worth a row until the app has something on it worth looking at.
+**Last updated at the end of P0, wave D. P0 is closed.** No row was added and none was closed across waves B, C and D: none of them needed anything from you. The panel, the repo checks, the layer rule, the local stack and CI were all buildable and verifiable from the terminal.
+
+Two things P0 could not verify itself, neither of which is a row:
+
+- **That the placeholder app opens in Expo Go on your phone.** It needs a physical device, so by the manual-step rule it would qualify - but it is not part of P0's gate and it is not worth your time until the app has a screen worth looking at. It becomes a row at P11.
+- **That CI is green on GitHub.** `.github/workflows/ci.yml` is committed and runs on push to `master`, on every pull request and on demand. It uses no secret, so there is nothing to set up; the first run just needs the push, which has happened. If it goes red, that is Kiro's to fix, not yours.
+
+One thing is worth knowing without being a task: the local stack was brought up for real in wave C, EMQX reached healthy with no `.env` on the machine, both services logged one line and idled, and `docker compose stop` got a genuine SIGTERM shutdown line and exit 0 out of each. That was the one wave that needed Docker, and Docker was already installed.
 
 ---
 
 ## DO NOW
+
+F-1 is the one to read first: P0 is closed, so the next spend is P1's.
 
 | # | What to do | Why it matters | What breaks if you skip it |
 |---|---|---|---|
