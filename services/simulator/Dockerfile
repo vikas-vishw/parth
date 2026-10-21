@@ -41,12 +41,15 @@ COPY --from=deps /repo/node_modules ./node_modules
 # pnpm's hoisted linker keeps workspace links and version-split packages in the package's own
 # node_modules, not the root one (design K12).
 COPY --from=deps /repo/services/simulator/node_modules services/simulator/node_modules
-COPY --from=deps /repo/packages/shared/node_modules packages/shared/node_modules
+# packages/shared/node_modules is deliberately NOT copied at P0: the shared package has no
+# dependency of its own yet, so pnpm creates no directory there and the COPY cannot resolve. It
+# returns at P1, when the contract brings zod.
 COPY --from=build /repo/packages/shared/package.json packages/shared/
 COPY --from=build /repo/packages/shared/dist packages/shared/dist
 COPY --from=build /repo/services/simulator/package.json services/simulator/
 COPY --from=build /repo/services/simulator/dist services/simulator/dist
-COPY --from=build /repo/services/simulator/panel services/simulator/panel
+# panel/ is deliberately NOT copied at P0: the Control_Surface and its control panel arrive at
+# P2 with the wire contract, so there is no directory to copy and nothing would serve it.
 WORKDIR /repo/services/simulator
 RUN node --input-type=module -e "await import('@parth/shared');"
 USER node

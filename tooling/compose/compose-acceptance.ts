@@ -9,20 +9,38 @@
 // with its built-in type stripping. The pure helpers are exported for
 // tooling/test/compose-acceptance.test.ts; the CLI entry runs only when this file is the script.
 //
-// It writes a temporary Local_Mode `.env` (refusing to start if one exists), brings the stack up,
-// runs steps 23.1, stream, conversation, content, 23.2–23.8 in order against the gateway log,
-// both CLIs and (for `stream`, `conversation` and `content`) the two host-loopback published
-// ports, polling every 500 ms inside a 600 s budget, and prints the PASSED line or
-// `FAILED <criterion>` (or `FAILED budget`) followed by the token-redacted logs. It always stops
-// the stack and deletes the `.env` it wrote, also on SIGINT and SIGTERM. It prints no env value
-// except DEVICE_ID, and never prints stream text or a Conversation_Turn_View field.
+// NARROWED AT P0, and it returns to the ported shape at P2. Every pure helper below is ported
+// whole and exported; `acceptanceSteps` - steps 23.1 to 23.8 plus stream, conversation and
+// content - is ported whole, exported and NOT RUN, because every one of its steps needs the wire
+// contract, the two service CLIs and the two published surfaces, none of which exist at P0.
+// What the CLI entry runs instead is the three criteria P0 can actually observe: `up`, `quiet`
+// and `stop`.
+//
+// `up`    - `docker compose up --build -d` with NO root `.env` at all, then EMQX healthy and
+//           both service containers `running`. The no-`.env` part is the point: the Compose file
+//           carries the Local_Mode defaults, so a fresh clone needs no panel to come up. This
+//           check therefore WRITES no `.env`, and refuses to run when the developer has one,
+//           because a root `.env` would make the run prove something else.
+// `quiet` - each service log holds exactly one `service_start` line and mentions no broker
+//           connection, no subscription, no publish and no audio socket. At P0 the services
+//           start, log one line and idle; nothing connects to anything.
+// `stop`  - `docker compose stop` gets exactly one `service_stop` line carrying signal SIGTERM
+//           out of each service, each container exits 0, and Compose never has to kill one after
+//           a timeout. This is the only place a real signal reaches a real process in this
+//           repository, which is why the two SIGTERM assertions in the service test suites are
+//           POSIX-only and this one is not.
+//
+// It polls every 500 ms inside a 600 s budget that starts once the images are built, prints the
+// PASSED line or `FAILED <criterion>` (or `FAILED budget`) followed by the logs, and always
+// brings the stack down with `docker compose down -v`, also on SIGINT and SIGTERM. It prints no
+// env value and no log text beyond the logs it dumps on a failure.
 //
 // Every `.env` line is built at runtime from a [key, value] tuple and every URL from its parts,
 // so this source holds no Panel_Key assignment line and no URL literal. The `stream` requests go
 // to the loopback address only, with `node:http` request options rather than a URL.
 import { spawnSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
-import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, rmSync } from "node:fs";
 import { request } from "node:http";
 import { join, resolve } from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
@@ -38,6 +56,11 @@ import { fileURLToPath } from "node:url";
  * log is still short.
  */
 export const CRITERIA = [
+  // The three P0 criteria the CLI entry runs. See the narrowing note in the file header.
+  "up",
+  "quiet",
+  "stop",
+  // Ported, exported and not run until P2.
   "23.1",
   "stream",
   "conversation",
@@ -75,7 +98,7 @@ export const TURN_FRAMES = 50;
 /** Pre-offline events re-published by duplicate replay (Req 23.6). */
 export const REPLAYED_EVENTS = 5;
 
-export const DEVICE_ID_VALUE = "xlu_ci_sim";
+export const DEVICE_ID_VALUE = "prt_ci_sim";
 
 /**
  * The CI device's broker password. Anonymous broker access is off, so this value must be a user
@@ -84,7 +107,8 @@ export const DEVICE_ID_VALUE = "xlu_ci_sim";
  * A dev placeholder for a loopback-or-LAN dev stack, never a real secret.
  */
 export const CI_DEVICE_TOKEN = "dev_ci_sim_only_not_a_secret";
-export const PASSED_LINE = "PASSED 23.1–23.8 + stream + conversation + content";
+/** NARROWED at P0 to the three criteria the CLI entry runs; the 23.x line returns at P2. */
+export const PASSED_LINE = "PASSED up + quiet + stop";
 export const REDACTED = "[redacted]";
 
 /** The host address both local surfaces are published on (Phase 1.3 C8). */
@@ -1026,7 +1050,7 @@ export function checkStoryStep(
 // The Compose run (impure)
 // ---------------------------------------------------------------------------------------------
 
-type CallResult = Readonly<{
+export type CallResult = Readonly<{
   status: number | null;
   stdout: string;
   stderr: string;
@@ -1317,7 +1341,7 @@ function stringField(body: Json, key: string, criterion: Criterion): string {
 }
 
 /** Steps 23.1–23.8 against one running stack, sharing ids between steps. */
-function acceptanceSteps(h: Harness): readonly Step[] {
+export function acceptanceSteps(h: Harness): readonly Step[] {
   const deviceId = DEVICE_ID_VALUE;
   /** Event ids fired in step 23.2, in firing order. */
   const fired: string[] = [];
@@ -1650,9 +1674,232 @@ function write(line: string): void {
   process.stdout.write(line + "\n");
 }
 
-/** The gateway and simulator logs, token-redacted (defence in depth; neither logs it). */
+// ---------------------------------------------------------------------------------------------
+// The P0 criteria: up, quiet, stop
+// ---------------------------------------------------------------------------------------------
+
+/** Both long-running services, in a fixed order. */
+export const SERVICES: readonly Service[] = Object.freeze(["gateway", "simulator"] as const);
+
+/**
+ * How long `docker compose up --build -d` may take. A cold two-image build is minutes, and it is
+ * build time rather than behaviour, so it sits OUTSIDE the 600 s budget: the budget clock starts
+ * once the images are built and the stack is up.
+ */
+export const UP_TIMEOUT_MS = 900_000;
+/** How long `docker compose stop` and `docker compose down -v` may each take. */
+export const STOP_TIMEOUT_MS = 120_000;
+export const DOWN_TIMEOUT_MS = 120_000;
+/** How long EMQX may take to report healthy (its own healthcheck allows 24 x 5 s). */
+export const HEALTHY_LIMIT_MS = 180_000;
+/** How long one lifecycle line or one container state change may take to show up. */
+export const LIFECYCLE_LIMIT_MS = 60_000;
+
+export const START_EVENT = "service_start";
+export const STOP_EVENT = "service_stop";
+/** The signal `docker compose stop` delivers to PID 1 inside the container. */
+export const STOP_SIGNAL = "SIGTERM";
+
+/**
+ * What a P0 service log may not mention. At P0 neither service connects to the broker,
+ * subscribes, publishes or opens an audio socket - all of that arrives at P2 - and this is where
+ * that claim is OBSERVED rather than asserted in a comment. Matched case-insensitively against
+ * the whole raw log, so a line this check cannot parse still cannot hide one of these words.
+ */
+export const QUIET_WORDS: readonly string[] = Object.freeze([
+  "broker",
+  "subscri",
+  "publish",
+  "mqtt",
+  "audio",
+  "socket",
+  "connect",
+]);
+
+/** What Compose prints when a container did not stop on its own and had to be killed. */
+export const KILL_WORDS: readonly string[] = Object.freeze(["kill", "timeout", "force"]);
+
+/**
+ * `docker compose ps --format json` rows. Compose has printed both a JSON array and one object
+ * per line across its 2.x line, so both are read; anything else yields no row and the caller's
+ * verdict stays pending until its limit.
+ */
+export function psRecords(text: string): readonly Json[] {
+  const trimmed = text.trim();
+  if (trimmed === "") return [];
+  if (trimmed.startsWith("[")) {
+    try {
+      const value: unknown = JSON.parse(trimmed);
+      return Array.isArray(value) ? value.filter(isPlainObject) : [];
+    } catch {
+      return [];
+    }
+  }
+  return trimmed.split(/\r?\n/).flatMap((line) => {
+    const row = parseJsonObject(line.trim());
+    return row === null ? [] : [row];
+  });
+}
+
+function psField(text: string, service: string, key: string): unknown {
+  const row = psRecords(text).find((r) => r["Service"] === service);
+  return row === undefined ? undefined : row[key];
+}
+
+/** `up`: the service reports healthy. An explicit `unhealthy` fails rather than waits. */
+export function checkHealthy(text: string, service: string): Verdict {
+  const health = psField(text, service, "Health");
+  if (health === "unhealthy") return fail(service + " reports unhealthy");
+  return health === "healthy" ? PASS : pending("waiting for " + service + " to report healthy");
+}
+
+/** `up`: the service's container is `running`. Any other settled state fails. */
+export function checkRunning(text: string, service: string): Verdict {
+  const state = psField(text, service, "State");
+  if (state === undefined) return pending("waiting for the " + service + " container");
+  if (state === "running") return PASS;
+  return fail(service + " is " + String(state) + ", not running");
+}
+
+/** `stop`: the service's container has exited, with code 0. */
+export function checkExitedZero(text: string, service: string): Verdict {
+  const state = psField(text, service, "State");
+  const code = psField(text, service, "ExitCode");
+  if (state === undefined) return fail("the " + service + " container is gone");
+  if (state === "running") return pending("waiting for " + service + " to exit");
+  if (state !== "exited") return fail(service + " is " + String(state) + ", not exited");
+  return code === 0 ? PASS : fail(service + " exited " + String(code));
+}
+
+/**
+ * `quiet`: the log holds EXACTLY ONE line, and it is this service's `service_start`. One line is
+ * the whole P0 claim - the service starts, says so once, and then idles - so a second line of any
+ * kind fails here rather than being filtered out.
+ */
+export function checkStartLine(text: string, service: string): Verdict {
+  const parsed = parseLogLines(text);
+  if (!parsed.ok) {
+    return fail(service + " log line " + String(parsed.lineNo) + " is not JSON");
+  }
+  const entries = parsed.entries;
+  if (entries.length === 0) return pending("waiting for the " + service + " start line");
+  if (entries.length > 1) {
+    return fail(service + " logged " + String(entries.length) + " lines before stopping, not one");
+  }
+  const only = entries[0];
+  if (only === undefined || only["event"] !== START_EVENT) {
+    return fail(service + " logged " + String(only?.["event"]) + ", not " + START_EVENT);
+  }
+  if (only["service"] !== service) {
+    return fail("the start line names " + String(only["service"]) + ", not " + service);
+  }
+  return PASS;
+}
+
+/**
+ * `stop`: the log now holds exactly the start line and one `service_stop` carrying signal
+ * SIGTERM and a numeric uptime. The signal is asserted because it is the evidence that a real
+ * signal reached a real process - the one thing the service test suites cannot observe on
+ * Windows, and the reason their two SIGTERM assertions are POSIX-only.
+ */
+export function checkStopLine(text: string, service: string): Verdict {
+  const parsed = parseLogLines(text);
+  if (!parsed.ok) {
+    return fail(service + " log line " + String(parsed.lineNo) + " is not JSON");
+  }
+  const entries = parsed.entries;
+  const stops = entries.filter((e) => e["event"] === STOP_EVENT);
+  if (stops.length > 1) {
+    return fail(service + " logged " + String(stops.length) + " stop lines, not one");
+  }
+  const stop = stops[0];
+  if (stop === undefined) return pending("waiting for the " + service + " stop line");
+  if (entries.length !== 2 || entries[0]?.["event"] !== START_EVENT) {
+    return fail(service + " logged " + String(entries.length) + " lines, not a start then a stop");
+  }
+  if (stop["service"] !== service) {
+    return fail("the stop line names " + String(stop["service"]) + ", not " + service);
+  }
+  if (stop["signal"] !== STOP_SIGNAL) {
+    return fail("the " + service + " stop line carries signal " + String(stop["signal"]));
+  }
+  if (typeof stop["uptime_ms"] !== "number") {
+    return fail("the " + service + " stop line carries no uptime_ms");
+  }
+  return PASS;
+}
+
+/** `quiet`: the log mentions nothing that would mean a connection was made. */
+export function checkQuiet(text: string): Verdict {
+  const lower = text.toLowerCase();
+  const found = QUIET_WORDS.filter((word) => lower.includes(word));
+  return found.length === 0 ? PASS : fail("the log mentions " + found.join(", "));
+}
+
+/** `stop`: Compose did not have to kill a container that would not stop on its own. */
+export function checkNoKill(text: string): Verdict {
+  const lower = text.toLowerCase();
+  const found = KILL_WORDS.filter((word) => lower.includes(word));
+  return found.length === 0 ? PASS : fail("docker compose stop reported " + found.join(", "));
+}
+
+/** The three P0 criteria against one already-built stack. */
+export function p0Steps(h: Harness, root: string): readonly Step[] {
+  const logText = (c: Criterion, service: Service): string =>
+    h.composeText(c, ["logs", "--no-color", "--no-log-prefix", service]);
+  const psText = (c: Criterion, args: readonly string[]): string =>
+    h.composeText(c, ["ps", "--format", "json", ...args]);
+  const assertPass = (c: Criterion, what: string, verdict: Verdict): void => {
+    if (verdict.status !== "pass") throw new CheckFailure(c, what + ": " + verdict.why);
+  };
+
+  return [
+    {
+      criterion: "up",
+      async run() {
+        const c: Criterion = "up";
+        await h.waitFor(c, HEALTHY_LIMIT_MS, () => checkHealthy(psText(c, ["emqx"]), "emqx"));
+        for (const service of SERVICES) {
+          await h.waitFor(c, LIFECYCLE_LIMIT_MS, () => checkRunning(psText(c, [service]), service));
+        }
+      },
+    },
+    {
+      criterion: "quiet",
+      async run() {
+        const c: Criterion = "quiet";
+        for (const service of SERVICES) {
+          await h.waitFor(c, LIFECYCLE_LIMIT_MS, () =>
+            checkStartLine(logText(c, service), service),
+          );
+          assertPass(c, service, checkQuiet(logText(c, service)));
+        }
+      },
+    },
+    {
+      criterion: "stop",
+      async run() {
+        const c: Criterion = "stop";
+        const stopped = compose(root, ["stop"], STOP_TIMEOUT_MS);
+        if (stopped.timedOut) throw new CheckFailure(c, "docker compose stop timed out");
+        if (stopped.status !== 0) {
+          throw new CheckFailure(c, "docker compose stop exited " + String(stopped.status));
+        }
+        assertPass(c, "docker compose stop", checkNoKill(stopped.stdout + stopped.stderr));
+        for (const service of SERVICES) {
+          await h.waitFor(c, LIFECYCLE_LIMIT_MS, () => checkStopLine(logText(c, service), service));
+          await h.waitFor(c, LIFECYCLE_LIMIT_MS, () =>
+            checkExitedZero(psText(c, ["-a", service]), service),
+          );
+        }
+      },
+    },
+  ];
+}
+
+/** Both service logs. P0 writes no token, so there is nothing to redact; the call stays. */
 function printLogs(root: string, token: string): void {
-  for (const service of ["gateway", "simulator"] as const) {
+  for (const service of SERVICES) {
     const r = compose(root, ["logs", "--no-color", "--no-log-prefix", service], CALL_TIMEOUT_MS);
     write("--- " + service + " log ---");
     process.stdout.write(redact(r.stdout + r.stderr, token));
@@ -1661,41 +1908,33 @@ function printLogs(root: string, token: string): void {
 
 async function main(): Promise<number> {
   const root = fileURLToPath(new URL("../../", import.meta.url));
-  const envPath = join(root, ".env");
-  // A credential EMQX knows, not a random one: the broker now authenticates the device.
-  const token = CI_DEVICE_TOKEN;
+  const envPath = join(root, ROOT_ENV_FILE);
+  // P0 writes no `.env`, so there is no token to redact. The redaction call stays in place so
+  // P2 only has to supply the value again.
+  const token = "";
 
-  // Req 23.11: refuse explicitly, before anything is written, when the developer already has a
-  // root env file. It is never overwritten and never deleted; `cleanup` below can only remove
-  // the file this process itself created.
+  // Req 23.11, read the other way round at P0: the developer's root env file is never
+  // overwritten and never deleted, AND a root `.env` would make `up` prove something other than
+  // "a fresh clone comes up on the Compose defaults alone". Either way, refuse before touching
+  // anything.
   const refusal = rootEnvRefusalFor(envPath);
   if (refusal.length > 0) {
     for (const line of refusal) write(line);
     return 1;
   }
 
-  // Past the refusal with a file still there means it is this check's own, by its sentinel: an
-  // earlier run was killed before its cleanup. Replace it rather than refusing forever.
+  // Past the refusal with a file still there means it is this check's own scratch file, by its
+  // sentinel: a P2 run was killed before its cleanup. Remove it rather than run with it.
   if (existsSync(envPath)) {
     write(ROOT_ENV_RECLAIMED_NOTE);
     rmSync(envPath, { force: true });
-  }
-
-  try {
-    writeFileSync(envPath, envFileText(localEnvEntries(token)), { flag: "wx", mode: 0o600 });
-  } catch {
-    // The `wx` flag still guards the race between the check above and this write.
-    write("FAILED 23.11");
-    write(ROOT_ENV_UNWRITABLE_REASON);
-    return 1;
   }
 
   let cleaned = false;
   const cleanup = (): void => {
     if (cleaned) return;
     cleaned = true;
-    compose(root, ["down", "-v"], 120_000);
-    rmSync(envPath, { force: true });
+    compose(root, ["down", "-v"], DOWN_TIMEOUT_MS);
   };
   const onSignal = (signal: NodeJS.Signals): void => {
     cleanup();
@@ -1705,10 +1944,21 @@ async function main(): Promise<number> {
   process.once("SIGTERM", onSignal);
 
   try {
-    write("Compose_Acceptance_Check: DEVICE_ID " + DEVICE_ID_VALUE);
-    const startMs = Date.now();
-    const harness = createHarness(root, startMs);
-    const steps = acceptanceSteps(harness).map((step): Step => ({
+    write("Compose_Acceptance_Check (P0): up + quiet + stop, on the Compose defaults alone");
+    const built = compose(root, ["up", "--build", "-d"], UP_TIMEOUT_MS);
+    if (built.timedOut || built.status !== 0) {
+      write("FAILED up");
+      write(
+        built.timedOut
+          ? "reason: docker compose up --build timed out"
+          : "reason: docker compose up --build exited " + String(built.status),
+      );
+      process.stdout.write(redact(built.stdout + built.stderr, token));
+      return 1;
+    }
+    // The budget starts here: building the images is not behaviour under test.
+    const harness = createHarness(root, Date.now());
+    const steps = p0Steps(harness, root).map((step): Step => ({
       criterion: step.criterion,
       async run() {
         await step.run();
@@ -1743,7 +1993,7 @@ if (isEntryPoint()) {
     },
     () => {
       // Only cleanup can get here (runInOrder catches every step error).
-      write("FAILED 23.11");
+      write("FAILED up");
       process.exitCode = 1;
     },
   );

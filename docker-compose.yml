@@ -84,3 +84,33 @@ services:
     # P0: no healthcheck. Both service CLIs are contract-bound and arrive at P2, so there is
     # nothing to probe. Liveness at P0 is proved from the host: the container is still running,
     # and `docker compose stop` returns 0 after one service_stop line.
+    depends_on:
+      emqx:
+        condition: service_healthy
+    restart: "no"
+  # The simulator is a PEER OF THE DEVICE, not a test double: it speaks the wire format only.
+  # It therefore authenticates AS THE DEVICE, with DEVICE_ID and DEVICE_TOKEN, which is why its
+  # MQTT_USERNAME and MQTT_PASSWORD keep the bare ${VAR} form with no default - see the long
+  # note above. At P0 it depends on emqx only: the gateway's healthcheck arrives at P2 with its
+  # CLI, and `condition: service_healthy` against a service with no healthcheck never settles.
+  simulator:
+    build: { context: ., dockerfile: services/simulator/Dockerfile }
+    command: ["node", "dist/index.js", "--listen-all-interfaces"]
+    environment:
+      APP_ENV: "${APP_ENV:-local}"
+      MQTT_BROKER_URL: "${MQTT_BROKER_URL:-mqtt://emqx:1883}"
+      MQTT_USERNAME: "${MQTT_USERNAME}"
+      MQTT_PASSWORD: "${MQTT_PASSWORD}"
+      AUDIO_WSS_URL: "${AUDIO_WSS_URL:-ws://gateway:8081}"
+      DEVICE_ID: "${DEVICE_ID:-prt_000123}"
+      DEVICE_TOKEN: "${DEVICE_TOKEN:-dev_local_only_not_a_secret}"
+      SIMULATOR_PANEL_PORT: "${SIMULATOR_PANEL_PORT:-8091}"
+    # P0: no published port. The Control_Surface arrives at P2 with the panel.
+    env_file:
+      - path: ./.env
+        required: false
+    # P0: no healthcheck, for the reason given on the gateway.
+    depends_on:
+      emqx:
+        condition: service_healthy
+    restart: "no"

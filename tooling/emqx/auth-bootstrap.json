@@ -5,5 +5,5 @@
     "password": "dev_gateway_only_not_a_secret",
     "is_superuser": false
   },
-  { "user_id": "xlu_ci_sim", "password": "dev_ci_sim_only_not_a_secret", "is_superuser": false }
+  { "user_id": "prt_ci_sim", "password": "dev_ci_sim_only_not_a_secret", "is_superuser": false }
 ]

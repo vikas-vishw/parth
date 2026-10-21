@@ -40,7 +40,9 @@ COPY --from=deps /repo/node_modules ./node_modules
 # pnpm's hoisted linker keeps workspace links and version-split packages in each package's own
 # node_modules (design K12), so those are copied too.
 COPY --from=deps /repo/services/gateway/node_modules services/gateway/node_modules
-COPY --from=deps /repo/packages/shared/node_modules packages/shared/node_modules
+# packages/shared/node_modules is deliberately NOT copied at P0: the shared package has no
+# dependency of its own yet, so pnpm creates no directory there and the COPY cannot resolve. It
+# returns at P1, when the contract brings zod.
 COPY --from=build /repo/packages/shared/package.json packages/shared/
 COPY --from=build /repo/packages/shared/dist packages/shared/dist
 COPY --from=build /repo/services/gateway/package.json services/gateway/
