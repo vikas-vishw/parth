@@ -1,0 +1,216 @@
+# ===================================================================
+# PARTH CONNECTION PANEL. Never commit real values. Copy to .env.
+# Side legend: [cloud]=gateway/edge fns  [app]=Parth app  [device]=device/simulator
+# SECRET = backend only. Never in the app bundle, never on the device, never in a log.
+# DEFAULT = a starting value only. The live value is per user from P4, in the app.
+# ===================================================================
+
+# --- Supabase ---
+# [cloud] Project URL, Mumbai ap-south-1
+SUPABASE_URL=
+# [cloud] Public anon key, RLS-limited
+SUPABASE_ANON_KEY=
+# [cloud] SECRET. Bypasses RLS.
+SUPABASE_SERVICE_KEY=
+# [cloud] Project ref, for CLI migrations against the hosted project
+SUPABASE_PROJECT_REF=
+# [cloud] SECRET. Database password for CLI migrations
+SUPABASE_DB_PASSWORD=
+
+# --- Parth app. Expo bundles only EXPO_PUBLIC_* ---
+# [app] Same value as SUPABASE_URL
+EXPO_PUBLIC_SUPABASE_URL=
+# [app] Same value as SUPABASE_ANON_KEY
+EXPO_PUBLIC_SUPABASE_ANON_KEY=
+# [app] local | staging | production. The app cannot read APP_ENV.
+EXPO_PUBLIC_APP_ENV=
+# [app] Fallback timezone before the user profile loads
+EXPO_PUBLIC_DEFAULT_TZ=
+# [app] Public base URL the app opens to start a connection flow
+EXPO_PUBLIC_CONNECTIONS_BASE_URL=
+
+# --- Brain providers ---
+# [cloud] Adapter name
+LLM_PROVIDER=
+# [cloud] Model id
+LLM_MODEL=
+# [cloud] SECRET
+LLM_API_KEY=
+# [cloud] Speech-to-text adapter name
+STT_PROVIDER=
+# [cloud] SECRET
+STT_API_KEY=
+# [cloud] Text-to-speech adapter name
+TTS_PROVIDER=
+# [cloud] SECRET
+TTS_API_KEY=
+# [cloud] Research agent search backend
+SEARCH_PROVIDER=
+# [cloud] SECRET
+SEARCH_API_KEY=
+
+# --- Degradation ladder. Every provider names its fallback. ---
+# [cloud] Model used when LLM_MODEL fails
+LLM_FALLBACK_MODEL=
+# [cloud] Fallback speech-to-text adapter
+STT_FALLBACK_PROVIDER=
+# [cloud] Fallback voice. The brain says when it is running degraded.
+TTS_FALLBACK_PROVIDER=
+
+# --- Transcription, for meetings ---
+# [cloud] Hosted default adapter name
+TRANSCRIBE_PROVIDER=
+# [cloud] SECRET
+TRANSCRIBE_API_KEY=
+# [cloud] Self-host path only
+WHISPERX_URL=
+# [cloud] SECRET. Gated diarisation model agreement.
+HUGGINGFACE_TOKEN=
+
+# --- Ceilings. The brain refuses past these. ---
+# [cloud] Per user per day
+USER_DAILY_COST_CAP_USD=
+# [cloud] Per user per hour
+USER_HOURLY_TOOL_CAP=
+# [cloud] Per research request
+RESEARCH_COST_CAP_USD=
+# [cloud] Maximum agent steps per research request
+RESEARCH_MAX_STEPS=
+
+# --- Trust spine timings. DEFAULT: per user from P4, on the Rules screen. ---
+# [cloud] DEFAULT. Seconds a confirmation waits before expiring into not-done.
+CONFIRM_TIMEOUT_SEC=
+# [cloud] DEFAULT. Seconds the undo window stays open after an act.
+UNDO_WINDOW_SEC=
+# [cloud] DEFAULT. Interruptions allowed per hour.
+PROACTIVITY_MAX_PER_HOUR=
+
+# --- Retention. DEFAULT: per user from P4, on the Privacy screen. ---
+# [cloud] DEFAULT. delete_after_transcription | keep_30d
+MEETING_AUDIO_RETENTION=
+# [cloud] DEFAULT. 30 | 90 | 365 | indefinite
+TRANSCRIPT_RETENTION_DAYS=
+# [cloud] DEFAULT. Months. The Ledger is the accountability receipt.
+LEDGER_RETENTION_MONTHS=
+
+# --- Connections. OAuth clients. ---
+# [cloud] Built first at P6
+GOOGLE_CLIENT_ID=
+# [cloud] SECRET
+GOOGLE_CLIENT_SECRET=
+# [cloud] Callback URI registered with the provider
+GOOGLE_REDIRECT_URI=
+# [cloud] Built second at P6
+MS_CLIENT_ID=
+# [cloud] SECRET
+MS_CLIENT_SECRET=
+# [cloud] Directory tenant id
+MS_TENANT_ID=
+# [cloud] Callback URI registered with the provider
+MS_REDIRECT_URI=
+# [cloud] Notes and tasks client id
+NOTION_CLIENT_ID=
+# [cloud] SECRET
+NOTION_CLIENT_SECRET=
+# [cloud] Callback URI
+NOTION_REDIRECT_URI=
+# [cloud] Tasks client id
+TODOIST_CLIENT_ID=
+# [cloud] SECRET
+TODOIST_CLIENT_SECRET=
+# [cloud] Callback URI
+TODOIST_REDIRECT_URI=
+# [cloud] Music client id
+SPOTIFY_CLIENT_ID=
+# [cloud] SECRET
+SPOTIFY_CLIENT_SECRET=
+# [cloud] Callback URI
+SPOTIFY_REDIRECT_URI=
+# [cloud] SECRET. Signs the OAuth state parameter and the PKCE handoff.
+OAUTH_STATE_SECRET=
+# [cloud] Public base URL the OAuth callbacks land on
+CONNECTIONS_BASE_URL=
+
+# --- Token vault ---
+# [cloud] SECRET. Wraps per-user data keys. Lives only in the cloud environment.
+VAULT_MASTER_KEY=
+# [cloud] Rotation marker
+VAULT_KEY_VERSION=
+# [cloud] env | kms. P12.5 moves the master key out of env.
+VAULT_KEY_PROVIDER=
+
+# --- Smart home ---
+# [cloud] Where the controller keeps its fabric state
+MATTER_STORAGE_PATH=
+# [cloud] Human-readable fabric label
+MATTER_FABRIC_LABEL=
+# [cloud] Commissioning mode
+MATTER_COMMISSIONING_MODE=
+
+# --- Device seam. Document B-P. ---
+# [cloud][device] Broker URL including scheme and port
+MQTT_BROKER_URL=
+# [cloud][device] Broker username. Cloud and device are different principals.
+MQTT_USERNAME=
+# [cloud][device] SECRET on whichever side holds it
+MQTT_PASSWORD=
+# [cloud][device] Per-turn audio WebSocket URL
+AUDIO_WSS_URL=
+# [cloud] SECRET. Issues the device id and the prototype token at provisioning.
+DEVICE_PROVISION_SECRET=
+# [cloud][device] Cloud-issued device id
+DEVICE_ID=
+# [device] SECRET on the device. Prototype auth; a certificate replaces it at P12.5.
+DEVICE_TOKEN=
+# [cloud][device] 127.0.0.1 keeps the stack closed. 0.0.0.0 opens the broker and the
+# audio socket to the LAN only, and never the console or the panel.
+DEVICE_BIND_HOST=
+
+# --- TLS and per-device certificates. ARRIVES AT P12.5. ---
+# [cloud][device] P12.5. CA bundle that validates the broker and the audio socket.
+MQTT_CA_PATH=
+# [device] P12.5. Per-device certificate, replacing DEVICE_TOKEN.
+DEVICE_CERT_PATH=
+# [device] P12.5. SECRET on the device. The key is generated on-device and never travels.
+DEVICE_KEY_PATH=
+
+# --- Local control surfaces ---
+# [cloud] Local only, 127.0.0.1. The gateway operator surface.
+GATEWAY_OPERATOR_PORT=
+# [cloud] Local only, 127.0.0.1. The Parth Developer Console.
+CONSOLE_PORT=
+# [device] Local only, 127.0.0.1. The simulator control panel.
+SIMULATOR_PANEL_PORT=
+
+# --- Environment, locale and updates ---
+# [cloud] local | staging | production
+APP_ENV=
+# [cloud] Default timezone, e.g. Asia/Kolkata
+DEFAULT_TZ=
+# [cloud] Default voice language before the user chooses, e.g. en-IN
+DEFAULT_LOCALE=
+# [cloud] Base URL for signed update manifests
+OTA_MANIFEST_BASE_URL=
+# [cloud] Which signing key a manifest was signed with. The key itself is never here:
+# manifests are signed in the release pipeline and the device holds only the public key.
+OTA_SIGNING_KEY_ID=
+# [cloud] Base URL for display asset bundles
+HMI_BUNDLE_BASE_URL=
+
+# --- Telemetry. ARRIVES AT P12.5. ---
+# [cloud] P12.5. Where field telemetry goes.
+TELEMETRY_ENDPOINT=
+# [cloud] P12.5. SECRET.
+TELEMETRY_API_KEY=
+
+# --- Evaluation harness ---
+# [cloud] Grader model for the golden set. Separate, so a grader change
+# does not silently move the gate.
+EVAL_GRADER_MODEL=
+
+# --- Data residency. Enforced at boot by the provider gate. ---
+# [cloud] Storage and processing region
+DATA_REGION=
+# [cloud] true | false. False until Omar rules. A provider whose declared region
+# violates this does not load, and a provider with no declared region does not load.
+ALLOW_PROCESSING_OUTSIDE_INDIA=

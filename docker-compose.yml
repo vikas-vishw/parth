@@ -1,0 +1,86 @@
+# Local development only.
+# EMQX uses its image's default dashboard credentials. They are for local development only:
+# never reuse them, and never expose these ports beyond 127.0.0.1.
+name: parth
+services:
+  emqx:
+    image: emqx/emqx:5.8.9 # Apache-2.0. EMQX 5.9+ is BSL 1.1 (see README).
+    # Anonymous access is OFF (LAN bring-up). One password_based/built_in_database authenticator,
+    # seeded from the bootstrap file, so a client must present a known username and password
+    # before it may publish or subscribe on any topic. The device presents its DEVICE_ID and
+    # DEVICE_TOKEN; the gateway presents MQTT_USERNAME and MQTT_PASSWORD.
+    # The bootstrap file MUST be a BOM-free single JSON array. A BOM makes EMQX log
+    # parse_authn_users_failed and then refuse EVERY client - it fails closed, but silently.
+    environment:
+      EMQX_AUTHENTICATION__1__MECHANISM: password_based
+      EMQX_AUTHENTICATION__1__BACKEND: built_in_database
+      EMQX_AUTHENTICATION__1__USER_ID_TYPE: username
+      EMQX_AUTHENTICATION__1__BOOTSTRAP_FILE: /opt/emqx/data/auth-bootstrap.json
+      EMQX_AUTHENTICATION__1__BOOTSTRAP_TYPE: plain
+    volumes:
+      - ./tooling/emqx/auth-bootstrap.json:/opt/emqx/data/auth-bootstrap.json:ro
+    ports:
+      # Device-facing. Loopback by default; set DEVICE_BIND_HOST=0.0.0.0 to open to the LAN.
+      - "${DEVICE_BIND_HOST:-127.0.0.1}:1883:1883" # MQTT
+      - "${DEVICE_BIND_HOST:-127.0.0.1}:8883:8883" # MQTTS
+      # Not device-facing: loopback always, whatever DEVICE_BIND_HOST says.
+      - "127.0.0.1:8083:8083" # MQTT over WS
+      - "127.0.0.1:8084:8084" # MQTT over WSS
+      - "127.0.0.1:18083:18083" # Dashboard
+    healthcheck:
+      test: ["CMD", "/opt/emqx/bin/emqx", "ctl", "status"]
+      interval: 5s
+      timeout: 5s
+      retries: 24
+    restart: "no"
+  # The gateway and simulator are long-running. Each publishes exactly one port, on host
+  # 127.0.0.1 only: the gateway's Operator_Surface and the simulator's Control_Surface. The
+  # command is each image's CMD plus the argument that binds that surface on all container
+  # interfaces (Local_Mode only). The gateway also takes the Transcripts_Argument, so this local
+  # stack shows transcript and reply text on the operator channel, the Content_Admin_Argument, so
+  # the console's Content page may write, and the Device_Control_Argument, so the console's Device
+  # Control page and the Test_Matrix's driven rows may fire the five allow-listed commands through
+  # the Device_Action_Gate; all three have effect in Local_Mode only. The CLIs are
+  # still driven with `docker compose exec`.
+  #
+  # Each service's `environment:` carries its own eight G3 keys with Local_Mode defaults, so
+  # `docker compose up --build` works with no root `.env` at all. Every value is written
+  # ${VAR:-default}, and `environment:` overrides `env_file:`, so a root `.env` still wins:
+  # Compose reads that file both for interpolation and as the env_file, and `:-` also replaces an
+  # empty value, so even a `.env` copied straight from `.env.example` yields these defaults.
+  # These are dev placeholders for a loopback-only stack; nothing real belongs in this file.
+  #
+  # The SIMULATOR's MQTT_USERNAME and MQTT_PASSWORD keep the bare ${VAR} form with no default on
+  # purpose. Local_Mode maps an unset or empty broker credential to null, and a null credential is
+  # what makes the simulator authenticate AS THE DEVICE, with its DEVICE_ID and DEVICE_TOKEN -
+  # exactly what the firmware does. The GATEWAY has its own defaults below, because anonymous
+  # access is off and a cloud client must not present the device's token.
+  #
+  # AUDIO_WSS_URL names the `gateway` service at 8081: the audio listen port is that URL's port,
+  # and a non-loopback host makes the gateway bind 0.0.0.0 inside its container, which is what
+  # lets the simulator dial it over the Compose network. It is deliberately not published.
+  gateway:
+    build: { context: ., dockerfile: services/gateway/Dockerfile }
+    # P0: only the bind argument. --operator-transcripts and --content-admin gate surfaces
+    # that arrive at P2 and P4; they return with them.
+    command: ["node", "dist/index.js", "--listen-all-interfaces"]
+    environment:
+      APP_ENV: "${APP_ENV:-local}"
+      MQTT_BROKER_URL: "${MQTT_BROKER_URL:-mqtt://emqx:1883}"
+      # The gateway is an MQTT client too, and anonymous access is now off, so it needs its own
+      # credential. The device's id and token are NOT reused here: cloud and device authenticate
+      # as different principals, so one leaked token cannot impersonate the other.
+      MQTT_USERNAME: "${MQTT_USERNAME:-parth_gateway_dev}"
+      MQTT_PASSWORD: "${MQTT_PASSWORD:-dev_gateway_only_not_a_secret}"
+      AUDIO_WSS_URL: "${AUDIO_WSS_URL:-ws://gateway:8081}"
+      DEVICE_ID: "${DEVICE_ID:-prt_000123}"
+      DEVICE_TOKEN: "${DEVICE_TOKEN:-dev_local_only_not_a_secret}"
+      GATEWAY_OPERATOR_PORT: "${GATEWAY_OPERATOR_PORT:-8090}"
+    # P0: no published port. The Operator_Surface and the per-turn audio socket both arrive at
+    # P2, and nothing listens before then. The ports return with the listeners.
+    env_file:
+      - path: ./.env
+        required: false
+    # P0: no healthcheck. Both service CLIs are contract-bound and arrive at P2, so there is
+    # nothing to probe. Liveness at P0 is proved from the host: the container is still running,
+    # and `docker compose stop` returns 0 after one service_stop line.

@@ -1,0 +1,35 @@
+{
+  "tierA": [
+    "parth",
+    "gmail",
+    "outlook",
+    "todoist",
+    "notion",
+    "spotify",
+    "sarvam",
+    "elevenlabs",
+    "whisperx",
+    "pyannote",
+    "googleapis",
+    "microsoft-graph",
+    "matter.js"
+  ],
+  "tierB": [
+    "council",
+    "ledger",
+    "mentor",
+    "rehearsal",
+    "proactivity"
+  ],
+  "scopePrefix": "@parth/",
+  "infrastructurePaths": [
+    "eslint.config.mjs",
+    "tooling/eslint/parth-plugin.mjs"
+  ],
+  "acceptedFirstLinePragmas": [
+    "// @vitest-environment "
+  ],
+  "tierExemptPrefixes": [
+    "tooling/"
+  ]
+}
